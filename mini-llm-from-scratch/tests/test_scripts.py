@@ -1,6 +1,12 @@
 import os
+import json
 import subprocess
+import sys
 from pathlib import Path
+
+import numpy as np
+
+from mini_llm.data import TOKEN_DTYPE
 
 
 def test_download_thucnews_script_exists_and_is_linux_safe():
@@ -96,3 +102,79 @@ def test_benchmark_midrange_train_speed_script_runs_midrange_presets():
     assert "train_speed_${preset}.csv" in text
     assert "/Users/" not in text
     subprocess.run(["bash", "-n", str(script)], check=True)
+
+
+def test_prepare_fineweb_edu_script_uses_streaming_dataset_defaults():
+    script = Path("scripts/prepare_fineweb_edu.sh")
+    assert script.exists()
+    assert os.access(script, os.X_OK)
+    text = script.read_text(encoding="utf-8")
+    assert "mini_llm.pretrain_data" in text
+    assert "HuggingFaceFW/fineweb-edu" in text
+    assert "sample-10BT" in text
+    assert "TARGET_TRAIN_TOKENS" in text
+    assert "3200000000" in text
+    assert "VAL_FRACTION" in text
+    assert "0.01" not in text
+    assert "/Users/" not in text
+    subprocess.run(["bash", "-n", str(script)], check=True)
+
+
+def test_run_final_and_suite_scripts_are_config_driven():
+    for script_name in ["run_final_212m.sh", "run_experiment_suite.sh", "run_posttrain_evals.sh"]:
+        script = Path("scripts") / script_name
+        assert script.exists()
+        assert os.access(script, os.X_OK)
+        text = script.read_text(encoding="utf-8")
+        assert "configs/final_212m_rope_ctx1024.yaml" in text
+        assert "/Users/" not in text
+        subprocess.run(["bash", "-n", str(script)], check=True)
+
+
+def test_prepare_fineweb_edu_script_runs_local_text_end_to_end(tmp_path):
+    script = Path("scripts/prepare_fineweb_edu.sh")
+    local_text = tmp_path / "local corpus.txt"
+    local_text.write_text(
+        "\n".join(
+            [
+                "alpha beta gamma delta epsilon zeta eta theta iota kappa",
+                "language model training data attention cache transformer rope",
+                "news text pretraining validation tokens dataset stream",
+            ]
+            * 20
+        ),
+        encoding="utf-8",
+    )
+    train_bin = tmp_path / "train.bin"
+    val_bin = tmp_path / "val.bin"
+    manifest = tmp_path / "manifest.json"
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PYTHON": os.environ.get("PYTHON", sys.executable),
+            "PYTHONPATH": "src",
+            "LOCAL_TEXT_FILE": str(local_text),
+            "TOKENIZER_CORPUS": str(tmp_path / "tokenizer_corpus.txt"),
+            "TOKENIZER_PATH": str(tmp_path / "tokenizer.json"),
+            "TRAIN_BIN": str(train_bin),
+            "VAL_BIN": str(val_bin),
+            "MANIFEST": str(manifest),
+            "VOCAB_SIZE": "128",
+            "TOKENIZER_TRAIN_DOCS": "100",
+            "TOKENIZER_TRAIN_CHARS": "10000",
+            "TARGET_TRAIN_TOKENS": "80",
+            "TARGET_VAL_TOKENS": "20",
+            "MIN_CHARS": "5",
+            "FORCE_TOKENIZER": "1",
+        }
+    )
+
+    subprocess.run(["bash", str(script)], check=True, env=env)
+
+    assert np.memmap(train_bin, dtype=TOKEN_DTYPE, mode="r").shape[0] == 80
+    assert np.memmap(val_bin, dtype=TOKEN_DTYPE, mode="r").shape[0] == 20
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    assert payload["dataset_name"] == "local_text"
+    assert payload["token_bins"]["train_tokens"] == 80
+    assert payload["token_bins"]["val_tokens"] == 20

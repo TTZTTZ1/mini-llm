@@ -5,6 +5,7 @@ from dataclasses import replace
 import pytest
 
 from mini_llm.config import load_config, project_root_from_config, resolve_project_path, resolve_run_dir
+from mini_llm.model import GPTLanguageModel, config_from_model_config
 
 
 def test_load_smoke_config_has_linux_relative_paths():
@@ -51,3 +52,20 @@ def test_load_config_rejects_bad_device_and_dtype(tmp_path):
     path.write_text(yaml.safe_dump(raw), encoding="utf-8")
     with pytest.raises(ValueError, match="dtype"):
         load_config(path)
+
+
+def test_final_212m_config_matches_training_budget():
+    cfg = load_config(Path("configs/final_212m_rope_ctx1024.yaml"))
+
+    assert cfg.model.n_layer == 16
+    assert cfg.model.n_head == 14
+    assert cfg.model.n_embd == 896
+    assert cfg.model.block_size == 1024
+    assert cfg.model.position_encoding == "rope"
+    assert cfg.train.batch_size == 24
+    assert cfg.train.max_steps == 130209
+    assert cfg.train.batch_size * cfg.model.block_size * cfg.train.max_steps >= 3_200_000_000
+    assert cfg.data.train_bin == "data/processed/fineweb_edu_train.bin"
+    assert cfg.data.tokenizer_path == "data/tokenizer/fineweb_edu_bpe_32000.json"
+    params = sum(p.numel() for p in GPTLanguageModel(config_from_model_config(cfg.model)).parameters())
+    assert 210_000_000 <= params <= 214_000_000

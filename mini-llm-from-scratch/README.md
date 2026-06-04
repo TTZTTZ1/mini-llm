@@ -112,7 +112,45 @@ PY
 
 ## 数据集下载与预处理
 
-数据集可以自动下载。默认下载较小的 THUCNews 派生中文 cnews 子集，更适合快速完成实验闭环。该子集在 HuggingFace 上只有 `cnews.train.txt`；项目会在预处理阶段从 token 序列中自动切出训练集和验证集。
+项目保留 THUCNews/cnews 作为快速闭环数据，也新增了正式预训练数据管线。正式实验默认使用 HuggingFace `HuggingFaceFW/fineweb-edu` 的 `sample-10BT`，通过 `datasets` streaming 读取文本，训练 32k BPE tokenizer，并流式写入 `uint32` token 二进制文件。这个流程不会把几十亿 token 一次性读入内存。
+
+正式 212M 主实验数据：
+
+```bash
+./scripts/prepare_fineweb_edu.sh
+```
+
+默认配置：
+
+```text
+DATASET_NAME=HuggingFaceFW/fineweb-edu
+DATASET_CONFIG=sample-10BT
+VOCAB_SIZE=32000
+TARGET_TRAIN_TOKENS=3200000000
+TARGET_VAL_TOKENS=20000000
+```
+
+预期结果：
+
+- `data/tokenizer/fineweb_edu_bpe_32000.json`：32k BPE tokenizer。
+- `data/processed/fineweb_edu_train.bin`：约 3.2B 训练 token。
+- `data/processed/fineweb_edu_val.bin`：约 20M 验证 token。
+- `data/processed/fineweb_edu_manifest.json`：本次数据准备元信息。
+
+如果只想用本地小文本测试数据准备流程：
+
+```bash
+LOCAL_TEXT_FILE="tests/fixtures/tiny_corpus.txt" \
+TARGET_TRAIN_TOKENS=2000 \
+TARGET_VAL_TOKENS=200 \
+TOKENIZER_TRAIN_DOCS=100 \
+TOKENIZER_TRAIN_CHARS=10000 \
+MIN_CHARS=5 \
+FORCE_TOKENIZER=1 \
+./scripts/prepare_fineweb_edu.sh
+```
+
+THUCNews/cnews 仍可用于 smoke test 和中文快速实验。该子集在 HuggingFace 上只有 `cnews.train.txt`；项目会在预处理阶段从 token 序列中自动切出训练集和验证集。
 
 ```bash
 ./scripts/download_thucnews.sh
@@ -174,7 +212,54 @@ results/benchmarks/train_speed_large_560m.csv
 
 重点看 `tokens_per_second` 和 `peak_memory_reserved_mb`。该压测不依赖真实数据集，测的是目标模型在不同 batch size 下的训练吞吐和峰值显存。若某个 batch size OOM，脚本会记录 `status=oom` 并停止该模型后续更大的 batch，然后继续测试下一个模型。
 
-正式实验：
+212M 正式主实验：
+
+```bash
+./scripts/prepare_fineweb_edu.sh
+./scripts/run_final_212m.sh
+```
+
+该配置为：
+
+```text
+模型：16 layers, 14 heads, 896 hidden, RoPE, ctx 1024
+参数量：约 212M
+batch_size：24
+max_steps：130209
+训练 token：约 3.2B
+tokens/param：约 15.1
+```
+
+完整实验套件：
+
+```bash
+./scripts/run_experiment_suite.sh
+```
+
+默认会依次运行：
+
+- `configs/final_212m_rope_ctx1024.yaml`：212M 主模型。
+- `configs/ablation_212m_pos_abs.yaml`：212M + learned absolute position。
+- `configs/ablation_212m_pos_none.yaml`：212M + no position encoding。
+- `configs/ablation_212m_context_512.yaml`：212M + ctx 512。
+- `configs/ablation_212m_context_1536.yaml`：212M + ctx 1536。
+- `configs/scale_134m_rope_ctx1024.yaml`：134M 规模对比模型。
+
+如果只想先试跑每个配置 20 步：
+
+```bash
+MAX_STEPS_OVERRIDE=20 ./scripts/run_experiment_suite.sh
+```
+
+训练后评估：
+
+```bash
+./scripts/run_posttrain_evals.sh
+```
+
+会复用主模型 checkpoint，完成 greedy/temperature/top-k/top-p 采样对比和 KV Cache 推理基准测试。采样策略和 KV Cache 实验不需要重新训练模型。
+
+旧版快速实验脚本仍保留：
 
 ```bash
 ./scripts/run_train_tiny.sh
@@ -199,12 +284,27 @@ results/benchmarks/train_speed_large_560m.csv
 - `configs/smoke.yaml`：本地和服务器快速冒烟测试配置。
 - `configs/tiny.yaml`：小模型训练配置。
 - `configs/small.yaml`：较大模型训练配置。
+- `configs/final_212m_rope_ctx1024.yaml`：212M 正式主模型，3.2B train tokens。
+- `configs/ablation_212m_pos_abs.yaml`：212M 绝对位置编码消融。
+- `configs/ablation_212m_pos_none.yaml`：212M 无位置编码消融。
+- `configs/ablation_212m_context_512.yaml`：212M 短上下文消融。
+- `configs/ablation_212m_context_1536.yaml`：212M 长上下文消融。
+- `configs/scale_134m_rope_ctx1024.yaml`：134M 规模对比模型。
 - `configs/ablation_context_128.yaml`：上下文长度 128。
 - `configs/ablation_context_256.yaml`：上下文长度 256。
 - `configs/ablation_context_512.yaml`：上下文长度 512。
 - `configs/ablation_pos_none.yaml`：不使用位置编码。
 - `configs/ablation_pos_abs.yaml`：使用绝对位置编码。
 - `configs/ablation_pos_rope.yaml`：使用 RoPE 位置编码。
+
+## 是否需要重构
+
+不需要完整重构。当前项目是配置驱动结构：
+
+- 改模型大小、上下文长度、位置编码、batch size、训练步数：改 `configs/*.yaml`。
+- 改数据来源、token 数、tokenizer 规模：改 `scripts/prepare_fineweb_edu.sh` 的环境变量，或直接调用 `python -m mini_llm.pretrain_data`。
+- 改训练算法、checkpoint 策略、评估指标：才需要改 `src/mini_llm/train.py`。
+- 改 attention、RoPE、KV Cache：才需要改 `src/mini_llm/model.py` 或 `src/mini_llm/rope.py`。
 
 ## 测试命令
 
