@@ -39,9 +39,7 @@ mkdir -p "$DEST_DIR" "$DOWNLOAD_DIR"
 case "$SOURCE" in
   cnews)
     echo "Downloading THUCNews cnews subset into $DEST_DIR"
-    for split in train val test; do
-      download_file "$CNEWS_BASE_URL/cnews.${split}.txt" "$DEST_DIR/cnews.${split}.txt"
-    done
+    download_file "$CNEWS_BASE_URL/cnews.train.txt" "$DEST_DIR/cnews.train.txt"
     ;;
   full)
     archive="$DOWNLOAD_DIR/THUCNews.zip"

@@ -112,7 +112,7 @@ PY
 
 ## 数据集下载与预处理
 
-数据集可以自动下载。默认下载较小的 THUCNews 派生中文 cnews 子集，更适合快速完成实验闭环。
+数据集可以自动下载。默认下载较小的 THUCNews 派生中文 cnews 子集，更适合快速完成实验闭环。该子集在 HuggingFace 上只有 `cnews.train.txt`；项目会在预处理阶段从 token 序列中自动切出训练集和验证集。
 
 ```bash
 ./scripts/download_thucnews.sh
