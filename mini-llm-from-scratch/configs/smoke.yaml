@@ -1,0 +1,36 @@
+project:
+  name: mini-llm-from-scratch
+  run_name: smoke
+data:
+  raw_dir: data/raw
+  cleaned_text: data/processed/smoke_clean.txt
+  train_bin: data/processed/smoke_train.bin
+  val_bin: data/processed/smoke_val.bin
+  tokenizer_path: data/tokenizer/smoke_tokenizer.json
+  vocab_size: 256
+  val_fraction: 0.1
+model:
+  n_layer: 2
+  n_head: 2
+  n_embd: 64
+  block_size: 32
+  vocab_size: 256
+  dropout: 0.0
+  position_encoding: learned_abs
+train:
+  seed: 42
+  device: cpu
+  dtype: float32
+  batch_size: 4
+  max_steps: 20
+  eval_interval: 10
+  eval_iters: 2
+  learning_rate: 0.001
+  weight_decay: 0.0
+  grad_clip: 1.0
+  out_dir: results/runs/smoke
+generate:
+  max_new_tokens: 32
+  temperature: 1.0
+  top_k: 20
+  top_p: 0.9
