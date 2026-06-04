@@ -70,7 +70,13 @@ def test_benchmark_train_speed_script_runs_large_preset():
     assert os.access(script, os.X_OK)
     text = script.read_text(encoding="utf-8")
     assert "mini_llm.benchmark_train_speed" in text
-    assert "--preset large_250m" in text
-    assert "--batch-sizes 4 8 12 16 24 32" in text
+    assert "for preset in large_250m" in text
+    assert '--preset "$preset"' in text
+    assert "large_320m" in text
+    assert "large_370m" in text
+    assert "large_450m" in text
+    assert "large_560m" in text
+    assert "--batch-sizes 4 8 12 16 20 24 32" in text
+    assert "train_speed_${preset}.csv" in text
     assert "/Users/" not in text
     subprocess.run(["bash", "-n", str(script)], check=True)

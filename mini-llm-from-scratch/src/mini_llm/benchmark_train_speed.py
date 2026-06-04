@@ -27,6 +27,34 @@ BENCHMARK_PRESETS = {
         "dropout": 0.1,
         "position_encoding": "rope",
     },
+    "large_320m": {
+        "n_layer": 20,
+        "n_head": 16,
+        "n_embd": 1024,
+        "dropout": 0.1,
+        "position_encoding": "rope",
+    },
+    "large_370m": {
+        "n_layer": 24,
+        "n_head": 16,
+        "n_embd": 1024,
+        "dropout": 0.1,
+        "position_encoding": "rope",
+    },
+    "large_450m": {
+        "n_layer": 20,
+        "n_head": 20,
+        "n_embd": 1280,
+        "dropout": 0.1,
+        "position_encoding": "rope",
+    },
+    "large_560m": {
+        "n_layer": 24,
+        "n_head": 20,
+        "n_embd": 1280,
+        "dropout": 0.1,
+        "position_encoding": "rope",
+    },
 }
 
 
@@ -217,7 +245,7 @@ def run_sweep(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--preset", default="large_250m", choices=sorted(BENCHMARK_PRESETS))
-    parser.add_argument("--batch-sizes", nargs="+", type=int, default=[4, 8, 12, 16, 24, 32])
+    parser.add_argument("--batch-sizes", nargs="+", type=int, default=[4, 8, 12, 16, 20, 24, 32])
     parser.add_argument("--block-size", type=int, default=1024)
     parser.add_argument("--vocab-size", type=int, default=32000)
     parser.add_argument("--warmup-steps", type=int, default=5)

@@ -148,19 +148,23 @@ THUCNEWS_SOURCE=full THUCNEWS_MAX_FILES=5000 ./scripts/download_thucnews.sh
 ./scripts/run_smoke_test.sh
 ```
 
-在决定 large 模型 batch size 前，先用随机 token 压测 A800 训练速度和显存：
+在决定 large 模型规模和 batch size 前，先用随机 token 压测 A800 训练速度和显存：
 
 ```bash
 ./scripts/benchmark_train_speed.sh
 ```
 
-输出文件：
+脚本会依次测试 `large_250m`、`large_320m`、`large_370m`、`large_450m`、`large_560m`，输出文件：
 
 ```text
 results/benchmarks/train_speed_large_250m.csv
+results/benchmarks/train_speed_large_320m.csv
+results/benchmarks/train_speed_large_370m.csv
+results/benchmarks/train_speed_large_450m.csv
+results/benchmarks/train_speed_large_560m.csv
 ```
 
-重点看 `tokens_per_second` 和 `peak_memory_reserved_mb`。该压测不依赖真实数据集，测的是目标模型在不同 batch size 下的训练吞吐和峰值显存。若某个 batch size OOM，脚本会记录 `status=oom` 并停止后续更大的 batch。
+重点看 `tokens_per_second` 和 `peak_memory_reserved_mb`。该压测不依赖真实数据集，测的是目标模型在不同 batch size 下的训练吞吐和峰值显存。若某个 batch size OOM，脚本会记录 `status=oom` 并停止该模型后续更大的 batch，然后继续测试下一个模型。
 
 正式实验：
 
