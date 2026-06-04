@@ -41,6 +41,24 @@ def test_benchmark_presets_include_larger_model_candidates():
         assert cfg.position_encoding == "rope"
 
 
+def test_benchmark_presets_include_midrange_model_candidates():
+    expected = {
+        "mid_134m": (12, 12, 768),
+        "mid_163m": (16, 12, 768),
+        "mid_191m": (20, 12, 768),
+        "mid_219m": (24, 12, 768),
+        "mid_212m": (16, 14, 896),
+    }
+
+    for preset, (n_layer, n_head, n_embd) in expected.items():
+        assert preset in BENCHMARK_PRESETS
+        cfg = build_preset_config(preset, vocab_size=32000, block_size=1024)
+        assert cfg.n_layer == n_layer
+        assert cfg.n_head == n_head
+        assert cfg.n_embd == n_embd
+        assert cfg.position_encoding == "rope"
+
+
 def test_tokens_per_step_uses_batch_times_context():
     assert tokens_per_step(batch_size=12, block_size=1024) == 12288
 

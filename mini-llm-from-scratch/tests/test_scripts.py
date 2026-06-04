@@ -80,3 +80,19 @@ def test_benchmark_train_speed_script_runs_large_preset():
     assert "train_speed_${preset}.csv" in text
     assert "/Users/" not in text
     subprocess.run(["bash", "-n", str(script)], check=True)
+
+
+def test_benchmark_midrange_train_speed_script_runs_midrange_presets():
+    script = Path("scripts/benchmark_midrange_train_speed.sh")
+    assert script.exists()
+    assert os.access(script, os.X_OK)
+    text = script.read_text(encoding="utf-8")
+    assert "mid_134m" in text
+    assert "mid_163m" in text
+    assert "mid_191m" in text
+    assert "mid_219m" in text
+    assert "mid_212m" in text
+    assert "--batch-sizes 16 24 32 40 48 56 64" in text
+    assert "train_speed_${preset}.csv" in text
+    assert "/Users/" not in text
+    subprocess.run(["bash", "-n", str(script)], check=True)
