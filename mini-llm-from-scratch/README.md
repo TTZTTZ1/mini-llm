@@ -230,6 +230,20 @@ max_steps：130209
 tokens/param：约 15.1
 ```
 
+主实验会同时保存指标文件、checkpoint 和完整终端日志：
+
+```text
+results/runs/final_212m_rope_ctx1024/metrics.csv
+results/runs/final_212m_rope_ctx1024/checkpoint.pt
+results/runs/final_212m_rope_ctx1024/train_YYYYMMDD_HHMMSS.log
+```
+
+终端日志通过 `tee` 保存，训练时仍会实时显示在终端。若要指定日志路径：
+
+```bash
+LOG_FILE=results/runs/final_212m_rope_ctx1024/train_manual.log ./scripts/run_final_212m.sh
+```
+
 完整实验套件：
 
 ```bash
@@ -249,6 +263,18 @@ tokens/param：约 15.1
 
 ```bash
 MAX_STEPS_OVERRIDE=20 ./scripts/run_experiment_suite.sh
+```
+
+完整实验套件会为每个配置单独保存日志，默认位置为：
+
+```text
+results/logs/<config_name>_YYYYMMDD_HHMMSS.log
+```
+
+如需改日志目录：
+
+```bash
+LOG_DIR=results/logs/night_1 ./scripts/run_experiment_suite.sh
 ```
 
 训练后评估：

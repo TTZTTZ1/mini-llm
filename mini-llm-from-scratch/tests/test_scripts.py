@@ -131,6 +131,74 @@ def test_run_final_and_suite_scripts_are_config_driven():
         subprocess.run(["bash", "-n", str(script)], check=True)
 
 
+def test_run_final_212m_script_saves_stdout_and_stderr_log(tmp_path):
+    script = Path("scripts/run_final_212m.sh")
+    fake_python = tmp_path / "fake_python"
+    fake_python.write_text(
+        """#!/usr/bin/env bash
+printf 'stdout marker: %s\\n' "$*"
+printf 'stderr marker\\n' >&2
+""",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+    out_dir = tmp_path / "run"
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PYTHON": str(fake_python),
+            "OUT_DIR_OVERRIDE": str(out_dir),
+            "MAX_STEPS_OVERRIDE": "1",
+            "DEVICE": "cpu",
+        }
+    )
+
+    subprocess.run(["bash", str(script)], check=True, env=env)
+
+    logs = list(out_dir.glob("train_*.log"))
+    assert len(logs) == 1
+    log_text = logs[0].read_text(encoding="utf-8")
+    assert "stdout marker:" in log_text
+    assert "stderr marker" in log_text
+    assert "mini_llm.train" in log_text
+
+
+def test_run_experiment_suite_saves_per_config_logs(tmp_path):
+    script = Path("scripts/run_experiment_suite.sh")
+    fake_python = tmp_path / "fake_python"
+    fake_python.write_text(
+        """#!/usr/bin/env bash
+printf 'suite stdout: %s\\n' "$*"
+printf 'suite stderr\\n' >&2
+""",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+    log_dir = tmp_path / "logs"
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PYTHON": str(fake_python),
+            "LOG_DIR": str(log_dir),
+            "CONFIGS": "configs/final_212m_rope_ctx1024.yaml configs/scale_134m_rope_ctx1024.yaml",
+            "MAX_STEPS_OVERRIDE": "1",
+            "DEVICE": "cpu",
+        }
+    )
+
+    subprocess.run(["bash", str(script)], check=True, env=env)
+
+    logs = sorted(log_dir.glob("*.log"))
+    assert len(logs) == 2
+    all_text = "\n".join(log.read_text(encoding="utf-8") for log in logs)
+    assert "suite stdout:" in all_text
+    assert "suite stderr" in all_text
+    assert "configs/final_212m_rope_ctx1024.yaml" in all_text
+    assert "configs/scale_134m_rope_ctx1024.yaml" in all_text
+
+
 def test_prepare_fineweb_edu_script_runs_local_text_end_to_end(tmp_path):
     script = Path("scripts/prepare_fineweb_edu.sh")
     local_text = tmp_path / "local corpus.txt"
