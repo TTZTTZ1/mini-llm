@@ -14,6 +14,7 @@ mini-llm-from-scratch/
 ├── scripts/                 # 一键下载、预处理、训练和评测脚本
 ├── src/mini_llm/            # 核心源码
 ├── tests/                   # 单元测试和脚本测试
+├── environment.yml          # Conda 环境配置
 ├── requirements.txt         # Python 依赖
 └── README.md                # 项目说明
 ```
@@ -37,11 +38,18 @@ mini-llm-from-scratch/
 
 ```bash
 cd mini-llm-from-scratch
+conda env create -f environment.yml
+conda activate mini-llm
+PYTHONPATH=src pytest -q
+./scripts/run_smoke_test.sh
+```
+
+如果不使用 Conda，也可以继续用 venv：
+
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-PYTHONPATH=src pytest -q
-./scripts/run_smoke_test.sh
 ```
 
 预期结果：
@@ -82,16 +90,25 @@ cd mini-llm-from-scratch
 
 ```bash
 cd mini-llm-from-scratch
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+conda env create -f environment.yml
+conda activate mini-llm
 nvidia-smi
+python - <<'PY'
+import torch
+print("torch", torch.__version__)
+print("cuda_available", torch.cuda.is_available())
+if torch.cuda.is_available():
+    print("gpu", torch.cuda.get_device_name(0))
+PY
 ```
 
 预期结果：
 
-- `pip install` 成功安装 PyTorch、tokenizers、PyYAML、pytest 等依赖。
+- `conda env create` 成功创建名为 `mini-llm` 的环境。
 - `nvidia-smi` 能看到 A800 GPU。
+- `cuda_available` 输出 `True`，并能打印 GPU 名称。
+
+如果 `nvidia-smi` 正常但 `cuda_available` 是 `False`，通常是 PyTorch CUDA 轮子和服务器驱动不匹配。此时先保持 Conda 环境不变，只在 `mini-llm` 环境中按 PyTorch 官网给出的 Linux/CUDA 安装命令重装 `torch`。
 
 ## 数据集下载与预处理
 
@@ -168,6 +185,7 @@ THUCNEWS_SOURCE=full THUCNEWS_MAX_FILES=5000 ./scripts/download_thucnews.sh
 开发或修改代码后运行：
 
 ```bash
+conda activate mini-llm
 PYTHONPATH=src pytest -q
 bash -n scripts/*.sh
 python -m compileall -q src tests
@@ -192,6 +210,7 @@ python -m compileall -q src tests
 
 - 源码：`src/mini_llm/`
 - 配置：`configs/`
+- 环境配置：`environment.yml`、`requirements.txt`
 - 脚本：`scripts/`
 - 测试：`tests/`
 - 实验记录：`experiments/`

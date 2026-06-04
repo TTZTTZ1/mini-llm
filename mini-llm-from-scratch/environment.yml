@@ -1,0 +1,15 @@
+name: mini-llm
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - matplotlib
+  - numpy
+  - pandas
+  - pytest
+  - pyyaml
+  - tokenizers
+  - tqdm
+  - pip:
+      - torch
