@@ -80,6 +80,33 @@ def iter_hf_texts(
             yield text
 
 
+def iter_hf_text_batches(
+    dataset_name: str,
+    dataset_config: str | None,
+    split: str,
+    text_column: str,
+    streaming: bool,
+    batch_size: int,
+) -> Iterator[list[str]]:
+    try:
+        from datasets import load_dataset
+    except ImportError as exc:
+        raise RuntimeError("install the `datasets` package to stream HuggingFace datasets") from exc
+
+    kwargs: dict[str, Any] = {"split": split, "streaming": streaming}
+    if dataset_config:
+        kwargs["name"] = dataset_config
+    dataset = load_dataset(dataset_name, **kwargs)
+    if hasattr(dataset, "iter"):
+        for batch in dataset.iter(batch_size=batch_size):
+            values = batch.get(text_column, [])
+            texts = [text for text in values if isinstance(text, str) and text.strip()]
+            if texts:
+                yield texts
+        return
+    yield from iter_batches(iter_hf_texts(dataset_name, dataset_config, split, text_column, streaming), batch_size)
+
+
 def collect_tokenizer_corpus(
     texts: Iterable[str],
     output_path: Path,
@@ -149,12 +176,34 @@ def write_streaming_token_bins(
     encode_batch_size: int = 1024,
     progress_interval: int = 10_000,
 ) -> TokenBinStats:
+    return write_token_bins_from_text_batches(
+        iter_batches(texts, encode_batch_size),
+        tokenizer_path=tokenizer_path,
+        train_bin=train_bin,
+        val_bin=val_bin,
+        target_train_tokens=target_train_tokens,
+        target_val_tokens=target_val_tokens,
+        val_fraction=val_fraction,
+        min_chars=min_chars,
+        progress_interval=progress_interval,
+    )
+
+
+def write_token_bins_from_text_batches(
+    text_batches: Iterable[list[str]],
+    tokenizer_path: Path,
+    train_bin: Path,
+    val_bin: Path,
+    target_train_tokens: int,
+    target_val_tokens: int,
+    val_fraction: float | None,
+    min_chars: int,
+    progress_interval: int = 10_000,
+) -> TokenBinStats:
     if target_train_tokens <= 0:
         raise ValueError("target_train_tokens must be positive")
     if target_val_tokens <= 0:
         raise ValueError("target_val_tokens must be positive")
-    if encode_batch_size <= 0:
-        raise ValueError("encode_batch_size must be positive")
     if progress_interval < 0:
         raise ValueError("progress_interval must be non-negative")
 
@@ -177,7 +226,7 @@ def write_streaming_token_bins(
 
     try:
         with train_tmp.open("wb") as train_f, val_tmp.open("wb") as val_f:
-            for raw_batch in iter_batches(texts, encode_batch_size):
+            for raw_batch in text_batches:
                 if train_tokens >= target_train_tokens and val_tokens >= target_val_tokens:
                     break
                 cleaned_batch = [clean_text(text, min_chars=min_chars) for text in raw_batch]
@@ -256,6 +305,19 @@ def _build_text_iterator(args: argparse.Namespace) -> Iterator[str]:
     )
 
 
+def _build_text_batches(args: argparse.Namespace) -> Iterator[list[str]]:
+    if args.local_text:
+        return iter_batches(iter_local_texts(args.local_text), args.encode_batch_size)
+    return iter_hf_text_batches(
+        dataset_name=args.dataset_name,
+        dataset_config=args.dataset_config,
+        split=args.split,
+        text_column=args.text_column,
+        streaming=not args.no_streaming,
+        batch_size=args.encode_batch_size,
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Prepare streaming pretraining data for mini-LLM experiments.")
     parser.add_argument("--local-text", nargs="*", type=Path)
@@ -293,8 +355,8 @@ def main() -> None:
     else:
         corpus_stats = CorpusStats(documents=0, characters=0)
 
-    token_stats = write_streaming_token_bins(
-        _build_text_iterator(args),
+    token_stats = write_token_bins_from_text_batches(
+        _build_text_batches(args),
         tokenizer_path=args.tokenizer,
         train_bin=args.train_bin,
         val_bin=args.val_bin,
@@ -302,7 +364,6 @@ def main() -> None:
         target_val_tokens=args.target_val_tokens,
         val_fraction=args.val_fraction,
         min_chars=args.min_chars,
-        encode_batch_size=args.encode_batch_size,
         progress_interval=args.progress_interval,
     )
     write_manifest(

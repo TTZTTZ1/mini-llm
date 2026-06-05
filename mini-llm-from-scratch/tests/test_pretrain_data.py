@@ -5,9 +5,11 @@ import numpy as np
 from mini_llm.data import TOKEN_DTYPE
 from mini_llm.pretrain_data import (
     collect_tokenizer_corpus,
+    iter_batches,
     iter_local_texts,
     target_val_fraction,
     train_tokenizer,
+    write_token_bins_from_text_batches,
     write_streaming_token_bins,
 )
 
@@ -17,6 +19,10 @@ def test_iter_local_texts_yields_nonempty_lines(tmp_path):
     text_path.write_text("\nalpha beta gamma\n\nsecond document\n", encoding="utf-8")
 
     assert list(iter_local_texts([text_path])) == ["alpha beta gamma", "second document"]
+
+
+def test_iter_batches_groups_items_without_dropping_tail():
+    assert list(iter_batches(["a", "b", "c", "d", "e"], batch_size=2)) == [["a", "b"], ["c", "d"], ["e"]]
 
 
 def test_collect_tokenizer_corpus_cleans_and_limits_documents(tmp_path):
@@ -72,6 +78,37 @@ def test_write_streaming_token_bins_hits_exact_targets(tmp_path):
     assert stats.train_tokens == 80
     assert stats.val_tokens == 20
     assert stats.documents > 0
+
+
+def test_write_token_bins_from_text_batches_hits_exact_targets(tmp_path):
+    tokenizer_corpus = tmp_path / "tokenizer_corpus.txt"
+    tokenizer_path = tmp_path / "toy_tokenizer.json"
+    train_bin = tmp_path / "train.bin"
+    val_bin = tmp_path / "val.bin"
+
+    docs = [
+        "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu",
+        "news model training attention cache rope transformer language data",
+        "another useful pretraining paragraph with enough repeated tokens",
+    ] * 20
+    tokenizer_corpus.write_text("\n".join(docs), encoding="utf-8")
+    train_tokenizer(tokenizer_corpus, tokenizer_path, vocab_size=128)
+
+    stats = write_token_bins_from_text_batches(
+        iter_batches(docs, batch_size=7),
+        tokenizer_path=tokenizer_path,
+        train_bin=train_bin,
+        val_bin=val_bin,
+        target_train_tokens=80,
+        target_val_tokens=20,
+        val_fraction=None,
+        min_chars=5,
+    )
+
+    assert np.memmap(train_bin, dtype=TOKEN_DTYPE, mode="r").shape[0] == 80
+    assert np.memmap(val_bin, dtype=TOKEN_DTYPE, mode="r").shape[0] == 20
+    assert stats.train_tokens == 80
+    assert stats.val_tokens == 20
 
 
 def test_target_val_fraction_matches_requested_token_budget():
