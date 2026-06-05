@@ -62,6 +62,7 @@ def test_write_streaming_token_bins_hits_exact_targets(tmp_path):
         target_val_tokens=20,
         val_fraction=None,
         min_chars=5,
+        encode_batch_size=4,
     )
 
     train_tokens = np.memmap(train_bin, dtype=TOKEN_DTYPE, mode="r")
@@ -103,9 +104,33 @@ def test_write_streaming_token_bins_keeps_existing_bins_on_failure(tmp_path):
             target_val_tokens=1_000,
             val_fraction=None,
             min_chars=5,
+            encode_batch_size=4,
         )
 
     assert train_bin.read_bytes() == b"existing-train"
     assert val_bin.read_bytes() == b"existing-val"
     assert not train_bin.with_suffix(".bin.tmp").exists()
     assert not val_bin.with_suffix(".bin.tmp").exists()
+
+
+def test_write_streaming_token_bins_rejects_invalid_encode_batch_size(tmp_path):
+    tokenizer_corpus = tmp_path / "tokenizer_corpus.txt"
+    tokenizer_path = tmp_path / "toy_tokenizer.json"
+    docs = ["alpha beta gamma delta epsilon"] * 3
+    tokenizer_corpus.write_text("\n".join(docs), encoding="utf-8")
+    train_tokenizer(tokenizer_corpus, tokenizer_path, vocab_size=128)
+
+    import pytest
+
+    with pytest.raises(ValueError, match="encode_batch_size"):
+        write_streaming_token_bins(
+            docs,
+            tokenizer_path=tokenizer_path,
+            train_bin=tmp_path / "train.bin",
+            val_bin=tmp_path / "val.bin",
+            target_train_tokens=10,
+            target_val_tokens=2,
+            val_fraction=None,
+            min_chars=5,
+            encode_batch_size=0,
+        )

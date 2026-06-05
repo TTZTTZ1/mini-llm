@@ -120,6 +120,20 @@ PY
 ./scripts/prepare_fineweb_edu.sh
 ```
 
+默认是省磁盘的 streaming 模式。如果服务器网络、CPU 和磁盘都比较强，推荐改用本地缓存模式，让 HuggingFace 先把 `sample-10BT` 数据缓存到本机后再处理，通常比边下载边处理更快：
+
+```bash
+STREAMING=0 ENCODE_BATCH_SIZE=2048 ./scripts/prepare_fineweb_edu.sh
+```
+
+若 HuggingFace 直连较慢，可以使用镜像：
+
+```bash
+HF_ENDPOINT=https://hf-mirror.com STREAMING=0 ENCODE_BATCH_SIZE=2048 ./scripts/prepare_fineweb_edu.sh
+```
+
+`ENCODE_BATCH_SIZE` 控制批量 tokenizer 编码大小，默认 `2048`。如果 CPU 利用率不高，可以试 `4096`；如果内存或单批文本太大导致波动，再降回 `1024`。
+
 默认配置：
 
 ```text
@@ -128,6 +142,7 @@ DATASET_CONFIG=sample-10BT
 VOCAB_SIZE=32000
 TARGET_TRAIN_TOKENS=3200000000
 TARGET_VAL_TOKENS=20000000
+ENCODE_BATCH_SIZE=2048
 ```
 
 预期结果：

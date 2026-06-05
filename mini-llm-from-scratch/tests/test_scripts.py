@@ -114,6 +114,9 @@ def test_prepare_fineweb_edu_script_uses_streaming_dataset_defaults():
     assert "sample-10BT" in text
     assert "TARGET_TRAIN_TOKENS" in text
     assert "3200000000" in text
+    assert "ENCODE_BATCH_SIZE" in text
+    assert "STREAMING" in text
+    assert "--no-streaming" in text
     assert "VAL_FRACTION" in text
     assert "0.01" not in text
     assert "/Users/" not in text
@@ -233,6 +236,7 @@ def test_prepare_fineweb_edu_script_runs_local_text_end_to_end(tmp_path):
             "TOKENIZER_TRAIN_CHARS": "10000",
             "TARGET_TRAIN_TOKENS": "80",
             "TARGET_VAL_TOKENS": "20",
+            "ENCODE_BATCH_SIZE": "4",
             "MIN_CHARS": "5",
             "FORCE_TOKENIZER": "1",
         }

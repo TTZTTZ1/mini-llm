@@ -16,6 +16,10 @@ TARGET_TRAIN_TOKENS="${TARGET_TRAIN_TOKENS:-3200000000}"
 TARGET_VAL_TOKENS="${TARGET_VAL_TOKENS:-20000000}"
 VAL_FRACTION="${VAL_FRACTION:-}"
 MIN_CHARS="${MIN_CHARS:-128}"
+ENCODE_BATCH_SIZE="${ENCODE_BATCH_SIZE:-2048}"
+PROGRESS_INTERVAL="${PROGRESS_INTERVAL:-10000}"
+STREAMING="${STREAMING:-1}"
+export TOKENIZERS_PARALLELISM="${TOKENIZERS_PARALLELISM:-true}"
 
 TOKENIZER_CORPUS="${TOKENIZER_CORPUS:-data/processed/fineweb_edu_tokenizer_corpus.txt}"
 TOKENIZER_PATH="${TOKENIZER_PATH:-data/tokenizer/fineweb_edu_bpe_32000.json}"
@@ -39,7 +43,13 @@ args=(
   --target-train-tokens "$TARGET_TRAIN_TOKENS"
   --target-val-tokens "$TARGET_VAL_TOKENS"
   --min-chars "$MIN_CHARS"
+  --encode-batch-size "$ENCODE_BATCH_SIZE"
+  --progress-interval "$PROGRESS_INTERVAL"
 )
+
+if [ "$STREAMING" = "0" ] || [ "$STREAMING" = "false" ]; then
+  args+=(--no-streaming)
+fi
 
 if [ -n "$VAL_FRACTION" ]; then
   args+=(--val-fraction "$VAL_FRACTION")

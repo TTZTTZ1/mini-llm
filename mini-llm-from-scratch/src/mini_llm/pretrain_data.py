@@ -36,6 +36,19 @@ class TokenBinStats:
     val_bin: str
 
 
+def iter_batches(items: Iterable[str], batch_size: int) -> Iterator[list[str]]:
+    if batch_size <= 0:
+        raise ValueError("encode_batch_size must be positive")
+    batch: list[str] = []
+    for item in items:
+        batch.append(item)
+        if len(batch) >= batch_size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
+
+
 def iter_local_texts(paths: list[Path]) -> Iterator[str]:
     for path in paths:
         with path.open("r", encoding="utf-8") as f:
@@ -133,11 +146,17 @@ def write_streaming_token_bins(
     target_val_tokens: int,
     val_fraction: float | None,
     min_chars: int,
+    encode_batch_size: int = 1024,
+    progress_interval: int = 10_000,
 ) -> TokenBinStats:
     if target_train_tokens <= 0:
         raise ValueError("target_train_tokens must be positive")
     if target_val_tokens <= 0:
         raise ValueError("target_val_tokens must be positive")
+    if encode_batch_size <= 0:
+        raise ValueError("encode_batch_size must be positive")
+    if progress_interval < 0:
+        raise ValueError("progress_interval must be non-negative")
 
     tokenizer = Tokenizer.from_file(str(tokenizer_path))
     eos_id = tokenizer.token_to_id("<eos>")
@@ -158,30 +177,42 @@ def write_streaming_token_bins(
 
     try:
         with train_tmp.open("wb") as train_f, val_tmp.open("wb") as val_f:
-            for raw_text in texts:
+            for raw_batch in iter_batches(texts, encode_batch_size):
                 if train_tokens >= target_train_tokens and val_tokens >= target_val_tokens:
                     break
-                text = clean_text(raw_text, min_chars=min_chars)
-                if not text:
+                cleaned_batch = [clean_text(text, min_chars=min_chars) for text in raw_batch]
+                cleaned_batch = [text for text in cleaned_batch if text]
+                if not cleaned_batch:
                     continue
-                ids = tokenizer.encode(text).ids
-                if not ids:
-                    continue
-                ids.append(eos_id)
-                route_to_val = documents % stride == stride - 1
-                if val_tokens >= target_val_tokens:
-                    route_to_val = False
-                if train_tokens >= target_train_tokens:
-                    route_to_val = True
+                for encoding in tokenizer.encode_batch(cleaned_batch):
+                    if train_tokens >= target_train_tokens and val_tokens >= target_val_tokens:
+                        break
+                    ids = encoding.ids
+                    if not ids:
+                        continue
+                    ids.append(eos_id)
+                    route_to_val = documents % stride == stride - 1
+                    if val_tokens >= target_val_tokens:
+                        route_to_val = False
+                    if train_tokens >= target_train_tokens:
+                        route_to_val = True
 
-                if route_to_val:
-                    written = _write_ids(val_f, ids, target_val_tokens - val_tokens)
-                    val_tokens += written
-                else:
-                    written = _write_ids(train_f, ids, target_train_tokens - train_tokens)
-                    train_tokens += written
-                if written:
-                    documents += 1
+                    if route_to_val:
+                        written = _write_ids(val_f, ids, target_val_tokens - val_tokens)
+                        val_tokens += written
+                    else:
+                        written = _write_ids(train_f, ids, target_train_tokens - train_tokens)
+                        train_tokens += written
+                    if written:
+                        documents += 1
+                    if progress_interval and documents % progress_interval == 0:
+                        print(
+                            "progress "
+                            f"documents={documents} "
+                            f"train_tokens={train_tokens}/{target_train_tokens} "
+                            f"val_tokens={val_tokens}/{target_val_tokens}",
+                            flush=True,
+                        )
 
             if train_tokens < target_train_tokens or val_tokens < target_val_tokens:
                 raise ValueError(
@@ -245,6 +276,8 @@ def main() -> None:
     parser.add_argument("--target-val-tokens", type=int, default=20_000_000)
     parser.add_argument("--val-fraction", type=float)
     parser.add_argument("--min-chars", type=int, default=128)
+    parser.add_argument("--encode-batch-size", type=int, default=1024)
+    parser.add_argument("--progress-interval", type=int, default=10_000)
     parser.add_argument("--force-tokenizer", action="store_true")
     args = parser.parse_args()
 
@@ -269,6 +302,8 @@ def main() -> None:
         target_val_tokens=args.target_val_tokens,
         val_fraction=args.val_fraction,
         min_chars=args.min_chars,
+        encode_batch_size=args.encode_batch_size,
+        progress_interval=args.progress_interval,
     )
     write_manifest(
         args.manifest,
@@ -278,6 +313,8 @@ def main() -> None:
             "split": args.split,
             "text_column": args.text_column,
             "vocab_size": args.vocab_size,
+            "streaming": not args.no_streaming,
+            "encode_batch_size": args.encode_batch_size,
             "tokenizer_corpus": asdict(corpus_stats),
             "token_bins": asdict(token_stats),
         },
