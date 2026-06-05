@@ -140,6 +140,7 @@ def test_run_final_212m_script_saves_stdout_and_stderr_log(tmp_path):
     fake_python.write_text(
         """#!/usr/bin/env bash
 printf 'stdout marker: %s\\n' "$*"
+printf 'pythonunbuffered=%s\\n' "${PYTHONUNBUFFERED:-}"
 printf 'stderr marker\\n' >&2
 """,
         encoding="utf-8",
@@ -163,6 +164,7 @@ printf 'stderr marker\\n' >&2
     assert len(logs) == 1
     log_text = logs[0].read_text(encoding="utf-8")
     assert "stdout marker:" in log_text
+    assert "pythonunbuffered=1" in log_text
     assert "stderr marker" in log_text
     assert "mini_llm.train" in log_text
 
@@ -173,6 +175,7 @@ def test_run_experiment_suite_saves_per_config_logs(tmp_path):
     fake_python.write_text(
         """#!/usr/bin/env bash
 printf 'suite stdout: %s\\n' "$*"
+printf 'pythonunbuffered=%s\\n' "${PYTHONUNBUFFERED:-}"
 printf 'suite stderr\\n' >&2
 """,
         encoding="utf-8",
@@ -197,6 +200,7 @@ printf 'suite stderr\\n' >&2
     assert len(logs) == 2
     all_text = "\n".join(log.read_text(encoding="utf-8") for log in logs)
     assert "suite stdout:" in all_text
+    assert "pythonunbuffered=1" in all_text
     assert "suite stderr" in all_text
     assert "configs/final_212m_rope_ctx1024.yaml" in all_text
     assert "configs/scale_134m_rope_ctx1024.yaml" in all_text

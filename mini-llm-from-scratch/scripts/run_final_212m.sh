@@ -4,6 +4,7 @@ cd "$(dirname "$0")/.."
 
 PYTHON_BIN="${PYTHON:-python3}"
 export PYTHONPATH=src
+export PYTHONUNBUFFERED=1
 
 CONFIG="${CONFIG:-configs/final_212m_rope_ctx1024.yaml}"
 DEVICE="${DEVICE:-cuda}"

@@ -74,7 +74,7 @@ def train(config_path: Path, max_steps: int | None = None, device_override: str 
                 ]
                 writer.writerow(row)
                 f.flush()
-                print(f"step={step} train_loss={row[1]:.4f} val_loss={val_loss:.4f} val_ppl={row[3]:.2f}")
+                print(f"step={step} train_loss={row[1]:.4f} val_loss={val_loss:.4f} val_ppl={row[3]:.2f}", flush=True)
                 if val_loss < best_val:
                     best_val = val_loss
                     save_checkpoint(out_dir / "checkpoint.pt", model, optimizer, cfg, step, val_loss)

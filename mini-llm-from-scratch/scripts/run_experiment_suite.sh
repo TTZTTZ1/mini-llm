@@ -4,6 +4,7 @@ cd "$(dirname "$0")/.."
 
 PYTHON_BIN="${PYTHON:-python3}"
 export PYTHONPATH=src
+export PYTHONUNBUFFERED=1
 
 DEVICE="${DEVICE:-cuda}"
 DEFAULT_CONFIGS="configs/final_212m_rope_ctx1024.yaml configs/ablation_212m_pos_abs.yaml configs/ablation_212m_pos_none.yaml configs/ablation_212m_context_512.yaml configs/ablation_212m_context_1536.yaml configs/scale_134m_rope_ctx1024.yaml"
